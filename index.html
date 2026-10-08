@@ -23,12 +23,26 @@
 
     <main id="stage">
       <canvas id="field" width="2000" height="1200" aria-label="ゲームフィールド"></canvas>
+      <div id="replay-bar" class="hidden">
+        <button id="rp-prev" class="btn" title="前のショット">◀ 前のショット</button>
+        <button id="rp-play" class="btn primary">▶ 自動再生</button>
+        <button id="rp-next" class="btn" title="次のショット">次のショット ▶</button>
+        <div class="rp-speed">
+          <label>速度:</label>
+          <button class="spd-btn on" data-spd="1">1x</button>
+          <button class="spd-btn" data-spd="2">2x</button>
+          <button class="spd-btn" data-spd="4">4x</button>
+        </div>
+        <div id="rp-indicator">ショット 0 / 0</div>
+        <button id="rp-exit" class="btn" title="リプレイ終了">終了</button>
+      </div>
       <div id="result" class="overlay hidden">
         <div class="card">
           <h2 id="result-title">—</h2>
           <p id="result-sub"></p>
           <div class="row">
-            <button id="btn-again" class="btn primary">もう一度</button>
+            <button id="btn-replay" class="btn primary">🎬 リプレイを見る</button>
+            <button id="btn-again" class="btn">もう一度</button>
             <button id="btn-next" class="btn primary hidden">次のステージ ▶</button>
             <button id="btn-tomenu" class="btn">メニュー</button>
           </div>
@@ -54,6 +68,7 @@
           <button class="tab active" data-tab="versus">対戦（同一端末）</button>
           <button class="tab" data-tab="campaign">キャンペーン</button>
           <button class="tab" data-tab="saves">セーブデータ</button>
+          <button class="tab" data-tab="replays">対戦ログ/リプレイ</button>
           <button class="tab" data-tab="help">遊び方</button>
         </div>
 
@@ -110,6 +125,15 @@
 
         <div id="tab-saves" class="tabpane hidden">
           <div id="save-list"></div>
+        </div>
+
+        <div id="tab-replays" class="tabpane hidden">
+          <div class="row" style="justify-content: flex-start; margin-top:0; margin-bottom:10px; gap:8px;">
+            <button id="btn-import-replay" class="btn">📁 リプレイをインポート (JSON)</button>
+            <input type="file" id="input-replay-file" accept=".json" class="hidden">
+            <span class="muted" style="align-self:center; font-size:13px;">※直近30戦を自動保存</span>
+          </div>
+          <div id="replay-list"></div>
         </div>
 
         <div id="tab-help" class="tabpane hidden">
