@@ -1,5 +1,6 @@
 /* 数式パーサ: 文字列 -> (x, y, v) => number のクロージャ
  *  変数: x, y, y'(=v)   定数: pi, π, e
+ *  極座標モード (opts.polar): θ / theta / t が角度変数 (x の代わり)。x, y は使用不可
  *  暗黙の乗算: 2x, 3sin(x), (x+1)(x-1), x/5x = (x/5)*x
  */
 (function (g) {
@@ -12,13 +13,20 @@
   };
   const FNAMES = Object.keys(FN).sort((a, b) => b.length - a.length);
 
-  function tokenize(src) {
+  function tokenize(src, polar) {
     const s = src.replace(/\s+/g, '').replace(/π/g, 'pi').replace(/√/g, 'sqrt')
       .replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/’/g, "'");
     const t = [];
     let i = 0;
     while (i < s.length) {
       const c = s[i];
+      // 極座標モード: θ / theta / t を角度変数として扱う (内部的には x スロットに入れる)
+      if (c === 'θ' || s.startsWith('theta', i) || (c === 't' && !FNAMES.some((n) => s.startsWith(n, i)))) {
+        if (!polar) throw new Error('θ は極座標モード (r = f(θ)) でのみ使えます');
+        t.push({ k: 'var', v: 'x' }); i += c === 'θ' ? 1 : s.startsWith('theta', i) ? 5 : 1;
+        continue;
+      }
+      if (polar && (c === 'x' || c === 'y')) throw new Error('極座標モードでは x, y ではなく θ を使ってください');
       if (/[0-9.]/.test(c)) {
         let j = i;
         while (j < s.length && /[0-9.]/.test(s[j])) j++;
@@ -49,9 +57,9 @@
     return t;
   }
 
-  function compile(src) {
+  function compile(src, opts) {
     if (!src || !src.trim()) throw new Error('関数を入力してください');
-    const tk = tokenize(src);
+    const tk = tokenize(src, !!(opts && opts.polar));
     let p = 0;
     const peek = () => tk[p];
     const startsPrimary = (t) => t && (t.k === 'num' || t.k === 'var' || t.k === 'fn' || t.k === '(');

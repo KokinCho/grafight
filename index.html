@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Graphwar Ⅱ クローン | 数式で撃ち合う砲撃ゲーム</title>
-  <meta name="description" content="数学関数の軌道で敵を撃つ砲撃ゲーム Graphwar Ⅱ のブラウザクローン。y=f(x)・1階/2階微分方程式、ターン制とリアルタイム対戦、キャンペーン搭載。">
+  <meta name="description" content="数学関数の軌道で敵を撃つ砲撃ゲーム Graphwar Ⅱ のブラウザクローン。y=f(x)・1階/2階微分方程式・極座標 r=f(θ)、ターン制とリアルタイム対戦、キャンペーン搭載。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
   <link rel="stylesheet" href="style.css">
@@ -68,6 +68,7 @@
             <button data-v="plain" class="on">y = f(x)</button>
             <button data-v="ode1">y′ = f(x, y)</button>
             <button data-v="ode2">y″ = f(x, y, y′)</button>
+            <button data-v="polar">r = f(θ)</button>
           </div>
           <div class="two">
             <div>
@@ -117,7 +118,8 @@
             <li><b>y = f(x)</b>：入力した関数のグラフが軌道になります。兵士の位置を通るよう自動で上下に平行移動されます。</li>
             <li><b>y′ = f(x, y)</b>：1階微分方程式。兵士の位置を初期条件として解いた解が軌道です。</li>
             <li><b>y″ = f(x, y, y′)</b>：2階微分方程式。初期条件は兵士の位置と<b>発射角</b>（↑↓キーまたは ± ボタン）。</li>
-            <li>右側チームは x が左右反転して評価され、常に敵方向へ進みます。</li>
+            <li><b>r = f(θ)</b>：極座標。盤面中央が極で、弾は θ が増える向き（反時計回り）に進みます。兵士の位置の角度 θ₀（0〜2π）から始まり、兵士を通るよう r 方向に自動でずらされます。<code>θ</code>（<code>theta</code>, <code>t</code> でも可）を使います。r が負なら極の反対側に描かれます。最大 6 周で消滅。</li>
+            <li>右側チームは x が左右反転して評価され、常に敵方向へ進みます（極座標では時計回り）。</li>
             <li>使える記法：<code>+ − * / ^ ( )</code>、<code>sin cos tan asin acos atan sinh cosh tanh abs ln log sqrt cbrt exp floor ceil sign</code>、<code>pi e</code>、<code>y'</code>。暗黙の乗算可（<code>2x</code>, <code>3sin(x)</code>）。</li>
             <li>定義域外（√負数・0除算など）や長すぎる軌道は途中で爆発します。弾は味方にも当たります。</li>
             <li><b>ターン制</b>：設定した制限時間(5〜180秒/無制限)で交互に発射。<b>リアルタイム</b>：両チームが同時に入力・発射。兵士ごとにクールダウンあり。左 Player1 は左の入力欄、Player2 は右の入力欄（Tab で移動）。盤面の自分の兵士をクリックで選択。関数と発射角は<b>兵士ごとに記憶</b>されます。</li>

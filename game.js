@@ -14,7 +14,14 @@
     plain: { lab: 'f(x) =', name: 'y = f(x)', ph: 'sin(x/3)*4' },
     ode1: { lab: "y' =", name: "y' = f(x, y)", ph: 'cos(x)+0.2' },
     ode2: { lab: "y'' =", name: "y'' = f(x, y, y')", ph: '-y+0.1' },
+    polar: { lab: 'r =', name: 'r = f(θ)', ph: '0.5θ' },
   };
+  const MAX_TURNS = 6;          // 極座標: 発射位置から最大何周まで追うか (閉曲線の無限周回防止)
+  const POLE_MIN = 2;           // 極座標: 兵士を極(原点)からこれ以上離す (θ₀ の不定性回避)
+  const TAU = Math.PI * 2;
+  // 角度を π 単位で表示 (例: 1.25π)
+  const fmtPi = (a) => { const k = +(a / Math.PI).toFixed(2); return k === 0 ? '0' : k === 1 ? 'π' : k + 'π'; };
+  const compileFor = (fm, src) => window.compileExpr(src, { polar: fm === 'polar' });
 
   const $ = (s) => document.querySelector(s);
   const canvas = $('#field');
@@ -67,6 +74,40 @@
     for (let y = YMIN + 5; y < YMAX; y += 5) if (y) g.fillText(y, wx(0) + 4, wy(y) - 3);
   })();
 
+  // 極座標グリッド: 極(原点)中心の同心円と π/12 刻みの放射線
+  const pgrid = document.createElement('canvas');
+  pgrid.width = CW; pgrid.height = CH;
+  (function () {
+    const g = pgrid.getContext('2d');
+    const RMAX = Math.hypot(XMAX, YMAX);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, CW, CH);
+    for (let r = 1; r <= Math.ceil(RMAX); r++) {
+      g.strokeStyle = r % 5 === 0 ? '#bfc9c3' : '#e6ebe8'; g.lineWidth = 1;
+      g.beginPath(); g.arc(wx(0), wy(0), r * U, 0, TAU); g.stroke();
+    }
+    for (let k = 0; k < 24; k++) {
+      const a = (k * Math.PI) / 12;
+      g.strokeStyle = k % 6 === 0 ? '#33443c' : k % 2 === 0 ? '#bfc9c3' : '#e6ebe8';
+      g.lineWidth = k % 6 === 0 ? 1.5 : 1;
+      g.beginPath(); g.moveTo(wx(0), wy(0)); g.lineTo(wx(RMAX * Math.cos(a)), wy(RMAX * Math.sin(a))); g.stroke();
+    }
+    // 角度ラベル: π/6 刻みで、放射線が盤面の縁に当たる少し手前に置く
+    const LAB = ['0', 'π/6', 'π/3', 'π/2', '2π/3', '5π/6', 'π', '7π/6', '4π/3', '3π/2', '5π/3', '11π/6'];
+    g.fillStyle = '#4b6a5a'; g.font = '700 11px JetBrains Mono, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    LAB.forEach((s, k) => {
+      const a = (k * Math.PI) / 6, c = Math.cos(a), sn = Math.sin(a);
+      const t = Math.min(Math.abs(c) > 1e-9 ? (XMAX - 1.2) / Math.abs(c) : 1e9, Math.abs(sn) > 1e-9 ? (YMAX - 0.8) / Math.abs(sn) : 1e9);
+      g.fillText(s, wx(t * c), wy(t * sn));
+    });
+    g.fillStyle = '#6b7c73'; g.font = '10px JetBrains Mono, monospace'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    for (let r = 5; r < XMAX; r += 5) g.fillText(r, wx(r) + 3, wy(0) + 12);
+    // 回転方向の目印 (θ は反時計回りに増える)
+    g.strokeStyle = '#4b6a5a'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(wx(0), wy(0), 1.6 * U, -0.2, -1.3, true); g.stroke();
+    const ex = wx(1.6 * Math.cos(1.3)), ey = wy(1.6 * Math.sin(1.3));
+    g.fillStyle = '#4b6a5a'; g.beginPath(); g.moveTo(ex - 6, ey - 2); g.lineTo(ex + 2, ey - 6); g.lineTo(ex + 1, ey + 3); g.fill();
+  })();
+
   // ===== 弾 =====
   class Shot {
     constructor(G, s, fm, f, angleDeg) {
@@ -80,6 +121,13 @@
       if (fm === 'plain') {
         this.F0 = f(this.X0, 0, 0);
         if (!isFinite(this.F0)) { this.done = true; this.fizzle = true; }
+      }
+      if (fm === 'polar') {
+        // 自チーム視点の座標 (X, y) で θ₀∈[0, 2π) と r₀ を求め、
+        // r(θ) = f(θ) + c が兵士を通るよう動径方向にオフセット c を足す (y = f(x) の上下平行移動と同じ考え方)
+        const p = polarStart(this.X, this.y, f);
+        this.th = p.th0; this.th0 = p.th0; this.c = p.c;
+        if (!isFinite(this.c)) { this.done = true; this.fizzle = true; }
       }
     }
     pos() { const t = this.trail[this.trail.length - 1]; return t; }
@@ -111,6 +159,20 @@
         const ny = f(sx + dX, 0, 0) - this.F0 + this.y0;
         if (!isFinite(ny)) return false;
         this.X = sx + dX; this.y = ny; return true;
+      }
+      if (fm === 'polar') {
+        // θ を増やしながら、1ステップの移動量が 0.05 以下になるよう dθ を半分ずつ縮める
+        // (r が大きいほど同じ dθ でも大きく動くため、固定刻みだと障害物をすり抜ける)
+        if (this.th - this.th0 > MAX_TURNS * TAU) return false;
+        let d = 0.02, r, nX, nY;
+        for (let i = 0; i < 24; i++) {
+          r = f(this.th + d, 0, 0) + this.c;
+          if (!isFinite(r)) return false;
+          nX = r * Math.cos(this.th + d); nY = r * Math.sin(this.th + d);
+          if (Math.hypot(nX - this.X, nY - this.y) > 0.05 && d > 1e-6) { d /= 2; continue; }
+          break;
+        }
+        this.th += d; this.X = nX; this.y = nY; return true;
       }
       if (fm === 'ode1') {
         const s0 = f(sx, this.y, 0);
@@ -156,6 +218,13 @@
     }
   }
 
+  // 極座標の初期条件。X は自チーム視点 (右チームは左右反転済み) の x 座標
+  function polarStart(X, y, f) {
+    const r0 = Math.hypot(X, y);
+    let th0 = Math.atan2(y, X); if (th0 < 0) th0 += TAU;
+    return { r0, th0, c: r0 - f(th0, 0, 0) };
+  }
+
   // ===== キャンペーンステージ =====
   const STAGES = [
     { name: 'はじめの一撃', fm: 'plain', shots: 3, hint: '関数 y=f(x) のグラフが弾道です。例: 0.2x のような傾きで右上の的を狙おう。', s: [[-20, 0]], t: [[18, 4]], b: [] },
@@ -166,6 +235,11 @@
     { name: '波乗り', fm: 'ode1', shots: 5, hint: "y' = cos(x) のようにうねらせて障害物の間を縫おう。", s: [[-22, -5], [-22, 8]], t: [[18, 10], [20, -6], [10, 0]], b: [[-5, 3, 3], [4, -5, 4], [4, 8, 3], [12, 3, 2.5]] },
     { name: '角度が命', fm: 'ode2', shots: 5, hint: "y'' = f(x,y,y') 。↑↓キーで発射角を調整。y''=0 なら角度通りの直線。", s: [[-20, -10]], t: [[20, 10]], b: [[0, 0, 6], [8, -8, 3]] },
     { name: '最終試験', fm: 'ode2', shots: 7, hint: "y''=-y のような振動解も使えます。すべての的を撃て。", s: [[-22, -10], [-22, 10]], t: [[18, 12], [20, 0], [14, -12], [6, 4]], b: [[-8, 0, 4], [0, 9, 3], [0, -9, 3], [8, 0, 3.5], [14, 6, 2], [14, -6, 2]] },
+    // ---- 極座標ステージ (盤面中央が極。弾は θ が増える向き = 反時計回りに進む) ----
+    { name: '極座標入門', fm: 'polar', shots: 3, hint: 'r = f(θ) のグラフが弾道です。中央が極で、弾は反時計回り(θが増える向き)に進みます。r = 5 のような定数は極を中心とする円になります。', s: [[-15, 0]], t: [[12, -9]], b: [[0, 0, 6], [0, 12, 3]] },
+    { name: 'らせん', fm: 'polar', shots: 4, hint: 'r = 2θ のように θ とともに r を増やすと、らせんを描いて外へ広がります。係数で広がる速さが変わります。', s: [[-4, 0]], t: [[10.3, 0], [0, 13.4]], b: [[0, 0, 1.5], [-9, -6, 2.2], [-12, 4, 2.2]] },
+    { name: '花びら', fm: 'polar', shots: 4, hint: '円の上に障害物。r = 3cos(4θ) のように r を周期的に揺らして避けよう。cos(nθ) の n で山の数が変わります。', s: [[-12, 0]], t: [[0, -12], [12, 0]], b: [[0, 0, 4], [-8.49, -8.49, 2.2], [8.49, -8.49, 2.2]] },
+    { name: '極座標・最終試験', fm: 'polar', shots: 7, hint: '円・らせん・花びらを使い分けよう。兵士ごとに θ₀ が違うことに注意。', s: [[-8, -4], [5, 9]], t: [[14.2, 4.65], [-14, 10], [-3, -12], [-11, -2.9]], b: [[0, 0, 4], [10, 0, 2.5], [-10, 6, 2], [6, -8, 2], [-8, -10, 2]] },
   ];
   const getProg = () => +(localStorage.getItem('gw2_prog') || 0);
   const setProg = (n) => localStorage.setItem('gw2_prog', Math.max(getProg(), n));
@@ -188,6 +262,7 @@
       for (let i = 0; i < cfg.n; i++) {
         for (let k = 0; k < 200; k++) {
           const x = t ? rnd(8, 23) : rnd(-23, -8), y = rnd(-12.5, 12.5);
+          if (cfg.fm === 'polar' && Math.hypot(x, y) < POLE_MIN) continue;
           if (teams[t].every((o) => Math.hypot(o.x - x, o.y - y) > 4)) {
             const s = mkSoldier(x, y, t, names.pop());
             teams[t].push(s); all.push(s); break;
@@ -250,7 +325,7 @@
     panelsEl.className = G.kind === 'campaign' ? 'single' : '';
     P = [];
     const nT = G.kind === 'campaign' ? 1 : 2;
-    const chips = ['sin(', 'cos(', 'tan(', 'abs(', 'ln(', 'sqrt(', 'exp(', '^', 'π', 'x'].concat(G.fm !== 'plain' ? ['y'] : [], G.fm === 'ode2' ? ["y'"] : []);
+    const chips = ['sin(', 'cos(', 'tan(', 'abs(', 'ln(', 'sqrt(', 'exp(', '^', 'π'].concat(G.fm === 'polar' ? ['θ'] : ['x'], G.fm === 'ode1' || G.fm === 'ode2' ? ['y'] : [], G.fm === 'ode2' ? ["y'"] : []);
     for (let t = 0; t < nT; t++) {
       const el = document.createElement('div');
       el.className = 'panel'; el.dataset.team = t;
@@ -305,9 +380,13 @@
     o.off.textContent = ''; o.prev = null;
     if (!s || !s.expr.trim()) return;
     let f;
-    try { f = window.compileExpr(s.expr); } catch (e) { return; }
+    try { f = compileFor(G.fm, s.expr); } catch (e) { return; }
     const dir = s.team === 1 ? -1 : 1, X0 = dir * s.x;
-    if (G.fm === 'plain') {
+    if (G.fm === 'polar') {
+      const p = polarStart(X0, s.y, f);
+      if (!isFinite(p.c)) return;
+      o.off.textContent = `${p.c >= 0 ? '+' : '−'} ${Math.abs(p.c).toFixed(3)}   θ₀ = ${fmtPi(p.th0)}`;
+    } else if (G.fm === 'plain') {
       const c = s.y - f(X0, 0, 0);
       if (!isFinite(c)) return;
       o.off.textContent = (c >= 0 ? '+ ' : '− ') + Math.abs(c).toFixed(3);
@@ -373,7 +452,7 @@
     if (!s || !s.alive) return;
     if (G.rt && s.cd > 0) return;
     let f;
-    try { f = window.compileExpr(o.input.value); f(0, 0, 0); } catch (e) { o.err.textContent = '⚠ ' + e.message; return; }
+    try { f = compileFor(G.fm, o.input.value); f(0, 0, 0); } catch (e) { o.err.textContent = '⚠ ' + e.message; return; }
     o.err.textContent = '';
     const shot = new Shot(G, s, G.fm, f, G.fm === 'ode2' ? s.angle : 0);
     G.shots.push(shot);
@@ -508,7 +587,7 @@
 
   function draw() {
     ctx.setTransform(2, 0, 0, 2, 0, 0);
-    ctx.drawImage(grid, 0, 0);
+    ctx.drawImage(G && G.fm === 'polar' ? pgrid : grid, 0, 0);
     if (!G) return;
     ctx.drawImage(terrain.c, 0, 0);
     // 角度インジケータ (ode2)
@@ -663,5 +742,14 @@
   window.addEventListener('resize', fit); new ResizeObserver(fit).observe($('#stage')); fit(); setTimeout(fit, 100);
   $('#menu').classList.remove('hidden');
   requestAnimationFrame(loop);
-  window.__gw = { startGame, get G() { return G; }, tryFire };
+  // デバッグ/検証用: 現在の盤面で兵士 si が expr を撃ったら、どの的に当たるか (地形は変更しない)
+  function simulate(si, expr) {
+    const s = G.teams[0][si], f = compileFor(G.fm, expr);
+    const sh = new Shot(G, s, G.fm, f, s.angle);
+    for (let i = 0; i < 200 && !sh.done; i++) sh.advance(MAX_ARC);
+    const end = sh.pos();
+    const hitT = G.teams[1].findIndex((o) => o.alive && sh.hit && Math.hypot(o.x - end[0], o.y - end[1]) < HIT_R + 0.05);
+    return { hitTarget: hitT, end, fizzle: sh.fizzle, hit: !!sh.hit, arc: sh.arc, turns: sh.th !== undefined ? (sh.th - sh.th0) / TAU : null };
+  }
+  window.__gw = { startGame, get G() { return G; }, tryFire, simulate };
 })();
