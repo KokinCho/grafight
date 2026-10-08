@@ -1,9 +1,9 @@
-# Graphwar Ⅱ Clone
+# Grafight
 
 数学関数・微分方程式の軌道で敵を撃ち合う砲撃ゲーム **Graphwar Ⅱ** のWebブラウザ版クローンです。
 HTML / CSS / Vanilla JavaScript (HTML5 Canvas) のみで実装されており、ライブラリ依存なしでブラウザ上で動作します。
 
-🎮 **[今すぐブラウザで遊ぶ (GitHub Pages)](https://kokincho.github.io/graphwar2-clone/)**
+🎮 **[今すぐブラウザで遊ぶ (GitHub Pages)](https://kokincho.github.io/grafight/)**
 
 ---
 
@@ -40,8 +40,8 @@ HTML / CSS / Vanilla JavaScript (HTML5 Canvas) のみで実装されており、
 
 ```bash
 # リポジトリをクローン
-git clone git@github.com:KokinCho/graphwar2-clone.git
-cd graphwar2-clone
+git clone git@github.com:KokinCho/grafight.git
+cd grafight
 
 # Pythonでローカルサーバーを起動
 python3 -m http.server 8000
