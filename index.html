@@ -7,7 +7,7 @@
   <meta name="description" content="数学関数の軌道で敵を撃つ砲撃ゲーム Graphwar Ⅱ のブラウザクローン。y=f(x)・1階/2階微分方程式・極座標 r=f(θ)、ターン制とリアルタイム対戦、キャンペーン搭載。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <div id="app">
@@ -129,7 +129,9 @@
       </div>
     </div>
   </div>
-  <script src="parser.js"></script>
-  <script src="game.js"></script>
+  <!-- ?v= はキャッシュ対策。JS/CSS を変更したら番号を上げること
+       (上げないと、ブラウザに残った古い JS と新しい HTML が混ざって動かなくなる) -->
+  <script src="parser.js?v=2"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>
