@@ -1,6 +1,6 @@
 # Grafight
 
-数学関数・微分方程式の軌道で敵を撃ち合う砲撃ゲーム **Graphwar Ⅱ** のWebブラウザ版クローンです。
+数学関数・微分方程式の軌道で敵を撃ち合う砲撃ゲームです。
 HTML / CSS / Vanilla JavaScript (HTML5 Canvas) のみで実装されており、ライブラリ依存なしでブラウザ上で動作します。
 
 🎮 **[今すぐブラウザで遊ぶ (GitHub Pages)](https://kokincho.github.io/grafight/)**
