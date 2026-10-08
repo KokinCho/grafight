@@ -226,15 +226,6 @@
       turnTime: cfg.kind === 'versus' ? (cfg.time || 0) : 0, cooldown: cfg.cd || 6,
       over: false, winner: -1, shotsLeft: cfg.kind === 'campaign' ? STAGES[cfg.stage].shots : 0, time: 0,
       preview: !!cfg.preview && cfg.kind === 'versus', bg: !!bg,
-      log: {
-        id: 'match_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-        ts: Date.now(),
-        cfg,
-        initialTerrain: terrain.c.toDataURL(),
-        initialSoldiers: gen.all.map((s) => ({ x: s.x, y: s.y, team: s.team, name: s.name, target: !!s.target })),
-        actions: [],
-        winner: null,
-      },
     };
     if (snap) {
       G.sel = snap.sel.slice(); G.turnTeam = snap.turnTeam; G.phase = snap.phase; G.timer = snap.timer;
@@ -384,27 +375,7 @@
     let f;
     try { f = window.compileExpr(o.input.value); f(0, 0, 0); } catch (e) { o.err.textContent = '⚠ ' + e.message; return; }
     o.err.textContent = '';
-    const angle = G.fm === 'ode2' ? s.angle : 0;
-    const shot = new Shot(G, s, G.fm, f, angle);
-    if (G.log && !G.bg) {
-      const act = {
-        id: G.log.actions.length,
-        time: G.time,
-        team: t,
-        soldierName: s.name,
-        soldierX: s.x,
-        soldierY: s.y,
-        fm: G.fm,
-        expr: o.input.value,
-        angle: angle,
-        trail: [],
-        hit: null,
-        fizzle: false,
-        kills: [],
-      };
-      shot.act = act;
-      G.log.actions.push(act);
-    }
+    const shot = new Shot(G, s, G.fm, f, G.fm === 'ode2' ? s.angle : 0);
     G.shots.push(shot);
     if (G.kind === 'campaign') { G.shotsLeft--; G.sel[0] = nextAlive(0, G.sel[0]); }
     else if (G.rt) {
@@ -421,7 +392,7 @@
     const o = P[G.turnTeam]; if (o) setTimeout(() => o.input.focus(), 30);
   }
 
-  function explode(x, y, shotAct) {
+  function explode(x, y) {
     for (let i = 0; i < 36; i++) {
       const a = rnd(0, 6.283), sp = rnd(2, 9);
       G.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rnd(.4, .9), max: .9, c: ['#ffcc33', '#ff7a1a', '#ff4d2e', '#555'][Math.floor(rnd(0, 4))] });
@@ -429,13 +400,12 @@
     G.parts.push({ ring: true, x, y, life: .35, max: .35 });
     terrain.erase(x, y, BLAST_R);
     for (const s of G.soldiers) {
-      if (s.alive && Math.hypot(s.x - x, s.y - y) < BLAST_R * 0.85) killSoldier(s, shotAct);
+      if (s.alive && Math.hypot(s.x - x, s.y - y) < BLAST_R * 0.85) killSoldier(s);
     }
   }
-  function killSoldier(s, shotAct) {
+  function killSoldier(s) {
     if (!s.alive) return;
     s.alive = false;
-    if (shotAct && !shotAct.kills.includes(s.name)) shotAct.kills.push(s.name);
     for (let i = 0; i < 18; i++) {
       const a = rnd(0, 6.283), sp = rnd(1, 6);
       G.parts.push({ x: s.x, y: s.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rnd(.5, 1), max: 1, c: TCOL[s.team] });
@@ -452,12 +422,7 @@
       sh.advance(SPEED * dt);
       if (sh.done && !sh.fin) {
         sh.fin = true;
-        if (sh.act) {
-          sh.act.trail = sh.trail.slice();
-          sh.act.hit = sh.hit ? sh.hit.slice() : null;
-          sh.act.fizzle = !!sh.fizzle;
-        }
-        if (sh.hit) explode(sh.hit[0], sh.hit[1], sh.act);
+        if (sh.hit) explode(sh.hit[0], sh.hit[1]);
         else if (sh.fizzle) { const p = sh.pos(); G.parts.push({ ring: true, x: p[0], y: p[1], life: .3, max: .3, small: true }); }
         G.trails.push({ pts: sh.trail, team: sh.team, life: 1.6 });
       }
@@ -480,11 +445,6 @@
 
   function finish(w) {
     G.over = true; G.winner = w;
-    if (G.log && !G.bg) {
-      G.log.winner = w;
-      G.log.duration = G.time;
-      saveReplay(G.log);
-    }
     const el = $('#result'), title = $('#result-title'), sub = $('#result-sub');
     $('#btn-next').classList.add('hidden');
     if (G.kind === 'campaign') {
@@ -585,19 +545,15 @@
   let last = performance.now();
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (isReplaying()) {
-      updateReplay(dt);
-    } else {
-      if (G && $('#menu').classList.contains('hidden')) update(dt);
-      if (G) refreshUI();
-    }
+    if (G && $('#menu').classList.contains('hidden')) update(dt);
+    if (G) refreshUI();
     draw();
     requestAnimationFrame(loop);
   }
 
   // ===== 盤面クリックで兵士選択 =====
   canvas.addEventListener('pointerdown', (e) => {
-    if (isReplaying() || !G || G.over || !(G.rt || G.kind === 'campaign')) return;
+    if (!G || G.over || !(G.rt || G.kind === 'campaign')) return;
     const r = canvas.getBoundingClientRect();
     const x = XMIN + ((e.clientX - r.left) / r.width) * (XMAX - XMIN), y = YMAX - ((e.clientY - r.top) / r.height) * (YMAX - YMIN);
     for (let t = 0; t < (G.kind === 'campaign' ? 1 : 2); t++) {
@@ -627,7 +583,6 @@
     $('#tab-' + t.dataset.tab).classList.remove('hidden');
     if (t.dataset.tab === 'campaign') renderStages();
     if (t.dataset.tab === 'saves') renderSaves();
-    if (t.dataset.tab === 'replays') renderReplays();
   });
   function renderStages() {
     const el = $('#stage-grid'); el.innerHTML = ''; const pr = getProg();
@@ -643,13 +598,10 @@
   const SKEY = 'gw2_saves';
   const getSaves = () => { try { return JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch (e) { return []; } };
   const putSaves = (a) => localStorage.setItem(SKEY, JSON.stringify(a));
-  const canResume = () => G && !G.bg && !G.over && !isReplaying();
+  const canResume = () => G && !G.bg && !G.over;
   const stamp = (ts) => { const d = new Date(ts), p = (n) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   const modeText = (c) => c.kind === 'campaign' ? `キャンペーン Stage ${c.stage + 1}` : `${c.rt ? 'リアルタイム' : 'ターン制'} / ${FM_INFO[c.fm].name}`;
-  function openMenu() {
-    if (isReplaying()) exitReplay();
-    updateResumeBar(); renderSaves(); renderReplays(); $('#menu').classList.remove('hidden');
-  }
+  function openMenu() { updateResumeBar(); renderSaves(); $('#menu').classList.remove('hidden'); }
   function resume() { $('#menu').classList.add('hidden'); const o = P.find((p) => !p.input.disabled); if (o) setTimeout(() => o.input.focus(), 30); }
   function updateResumeBar() {
     const on = canResume();
@@ -661,7 +613,6 @@
     return { name, ts: Date.now(), cfg: G.cfg, terrain: terrain.c.toDataURL(), snap: { teams, sel: G.sel.slice(), turnTeam: G.turnTeam, phase: G.phase, timer: G.timer, shotsLeft: G.shotsLeft, time: G.time } };
   }
   function loadSave(sv) {
-    exitReplay();
     const img = new Image();
     img.onload = () => { terrain.clear(); terrain.ctx.drawImage(img, 0, 0); terrain.refresh(); startGame(sv.cfg, sv.snap); };
     img.src = sv.terrain;
@@ -693,317 +644,12 @@
   };
   $('#btn-menu').onclick = openMenu;
   $('#btn-tomenu').onclick = () => { $('#result').classList.add('hidden'); openMenu(); };
-  $('#btn-again').onclick = () => { exitReplay(); startGame(lastCfg); };
-  $('#btn-next').onclick = () => { exitReplay(); startGame({ kind: 'campaign', stage: lastCfg.stage + 1 }); };
+  $('#btn-again').onclick = () => startGame(lastCfg);
+  $('#btn-next').onclick = () => startGame({ kind: 'campaign', stage: lastCfg.stage + 1 });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !G) return;
     if ($('#menu').classList.contains('hidden')) openMenu(); else if (canResume()) resume();
   });
-
-  // ===== 対戦ログ・リプレイシステム =====
-  const RKEY = 'gw2_replays';
-  const MAX_REPLAYS = 30;
-  let lastFinishedLog = null;
-  const getReplays = () => { try { return JSON.parse(localStorage.getItem(RKEY) || '[]'); } catch (e) { return []; } };
-  const putReplays = (a) => localStorage.setItem(RKEY, JSON.stringify(a));
-  function saveReplay(logData) {
-    if (!logData || !logData.actions || logData.actions.length === 0) return;
-    lastFinishedLog = logData;
-    try {
-      let list = getReplays();
-      list = list.filter((r) => r.id !== logData.id);
-      list.unshift(logData);
-      if (list.length > MAX_REPLAYS) list = list.slice(0, MAX_REPLAYS);
-      putReplays(list);
-    } catch (e) { console.warn('リプレイの保存容量上限:', e); }
-  }
-
-  // リプレイ再生エンジン
-  let R = null; // { log, curIndex, isPlaying, speed: 1, shotObj: null, tImg: null }
-  const isReplaying = () => !!R;
-
-  function startReplay(logData) {
-    $('#menu').classList.add('hidden');
-    $('#result').classList.add('hidden');
-    panelsEl.classList.add('hidden');
-    $('#replay-bar').classList.remove('hidden');
-
-    const tImg = new Image();
-    tImg.onload = () => {
-      R = {
-        log: logData,
-        curIndex: -1,
-        isPlaying: false,
-        speed: 1,
-        shotObj: null,
-        tImg: tImg,
-      };
-      // 盤面を初期状態に初期化
-      setupReplayStateAt(-1);
-      updateReplayHUD();
-      $('#mode-label').textContent = `🎬 リプレイ: ${modeText(logData.cfg)}`;
-      $('#fm-label').textContent = FM_INFO[logData.cfg.fm || 'plain'].name;
-    };
-    tImg.src = logData.initialTerrain;
-  }
-
-  function setupReplayStateAt(targetIndex) {
-    if (!R) return;
-    // 地形リセット
-    terrain.clear();
-    terrain.ctx.drawImage(R.tImg, 0, 0);
-    terrain.refresh();
-
-    // 兵士初期配置
-    const soldiers = R.log.initialSoldiers.map((d) => ({
-      x: d.x, y: d.y, team: d.team, name: d.name, alive: true, cd: 0, target: d.target, t: Math.random() * 6,
-    }));
-    const teams = [[], []];
-    soldiers.forEach((s) => teams[s.team].push(s));
-
-    G = {
-      cfg: R.log.cfg, kind: R.log.cfg.kind, rt: false, fm: R.log.cfg.fm || 'plain',
-      teams, soldiers, terrain,
-      shots: [], trails: [], parts: [], sel: [0, 0], turnTeam: 0, phase: 'aim', timer: 0,
-      turnTime: 0, cooldown: 6, over: false, winner: R.log.winner, shotsLeft: 0, time: 0,
-      preview: false, bg: false,
-    };
-
-    // targetIndex までのアクション（被弾・穴掘り・軌跡）を適用
-    for (let i = 0; i <= targetIndex && i < R.log.actions.length; i++) {
-      const a = R.log.actions[i];
-      if (a.trail && a.trail.length) {
-        G.trails.push({ pts: a.trail, team: a.team, life: 99999 });
-      }
-      if (a.hit) {
-        terrain.erase(a.hit[0], a.hit[1], BLAST_R);
-      }
-      if (a.kills && a.kills.length) {
-        G.soldiers.forEach((s) => {
-          if (a.kills.includes(s.name)) s.alive = false;
-        });
-      }
-    }
-    R.curIndex = targetIndex;
-    R.shotObj = null;
-  }
-
-  function exitReplay() {
-    if (!R) return;
-    R.isPlaying = false;
-    R = null;
-    $('#replay-bar').classList.add('hidden');
-    panelsEl.classList.remove('hidden');
-    startGame(lastCfg, null, true);
-  }
-
-  function updateReplayHUD() {
-    if (!R) return;
-    const total = R.log.actions.length;
-    const cur = R.curIndex + 1;
-    $('#rp-indicator').textContent = `ショット ${cur} / ${total}`;
-    $('#rp-play').textContent = R.isPlaying ? '⏸ 一時停止' : '▶ 自動再生';
-    $('#rp-prev').disabled = R.curIndex < 0;
-    $('#rp-next').disabled = R.curIndex >= total - 1;
-
-    // 現在のショットの情報をヘッダーやヒントに表示
-    if (R.curIndex >= 0 && R.curIndex < total) {
-      const a = R.log.actions[R.curIndex];
-      const angStr = a.fm === 'ode2' ? ` (角: ${a.angle}°)` : '';
-      const killStr = a.kills && a.kills.length ? ` → 撃破: [${a.kills.join(', ')}]` : (a.hit ? ' → 地形直撃' : ' → 画面外');
-      $('#hint').textContent = `[P${a.team + 1} ${a.soldierName}] ${a.fm === 'ode2' ? "y''" : a.fm === 'ode1' ? "y'" : 'y'} = ${a.expr}${angStr}${killStr}`;
-      $('#hint').classList.remove('hidden');
-    } else {
-      $('#hint').textContent = 'リプレイ開始位置 (発射前)';
-      $('#hint').classList.remove('hidden');
-    }
-  }
-
-  function replayStepNext() {
-    if (!R) return;
-    if (R.curIndex >= R.log.actions.length - 1) {
-      R.isPlaying = false;
-      updateReplayHUD();
-      return;
-    }
-    const nextIdx = R.curIndex + 1;
-    const act = R.log.actions[nextIdx];
-    // 弾を発射してアニメーションさせる
-    const s = G.soldiers.find((sol) => sol.name === act.soldierName) || G.soldiers[0];
-    let f;
-    try { f = window.compileExpr(act.expr); } catch (e) { f = () => 0; }
-    const sh = new Shot(G, s, act.fm, f, act.angle);
-    sh.act = act;
-    R.shotObj = sh;
-    G.shots = [sh];
-    R.curIndex = nextIdx;
-    updateReplayHUD();
-  }
-
-  function replayStepPrev() {
-    if (!R) return;
-    R.isPlaying = false;
-    G.shots = [];
-    const prevIdx = Math.max(-1, R.curIndex - 1);
-    setupReplayStateAt(prevIdx);
-    updateReplayHUD();
-  }
-
-  // リプレイのフレーム更新
-  function updateReplay(dt) {
-    if (!R) return;
-    const effDt = dt * (R.speed || 1);
-
-    if (R.shotObj) {
-      R.shotObj.advance(SPEED * effDt);
-      if (R.shotObj.done && !R.shotObj.fin) {
-        R.shotObj.fin = true;
-        if (R.shotObj.hit) explode(R.shotObj.hit[0], R.shotObj.hit[1], R.shotObj.act);
-        else if (R.shotObj.fizzle) {
-          const p = R.shotObj.pos();
-          G.parts.push({ ring: true, x: p[0], y: p[1], life: .3, max: .3, small: true });
-        }
-        G.trails.push({ pts: R.shotObj.trail, team: R.shotObj.team, life: 99999 });
-        R.shotObj = null;
-        G.shots = [];
-        updateReplayHUD();
-      }
-    } else if (R.isPlaying) {
-      // 弾が着弾して少し間を置いて次へ
-      R.waitTimer = (R.waitTimer || 0) + effDt;
-      if (R.waitTimer > 0.8) {
-        R.waitTimer = 0;
-        if (R.curIndex < R.log.actions.length - 1) {
-          replayStepNext();
-        } else {
-          R.isPlaying = false;
-          updateReplayHUD();
-        }
-      }
-    }
-
-    // パーティクルアニメ
-    G.parts.forEach((p) => { p.life -= effDt; if (!p.ring) { p.x += p.vx * effDt; p.y += p.vy * effDt; p.vy -= 6 * effDt; } });
-    G.parts = G.parts.filter((p) => p.life > 0);
-  }
-
-  // リプレイ一覧UI描画
-  function renderReplays() {
-    const el = $('#replay-list');
-    const list = getReplays();
-    el.innerHTML = list.length ? '' : '<p class="empty">保存されたリプレイはありません。対戦を完了すると自動保存されます。</p>';
-
-    list.forEach((rp, idx) => {
-      const card = document.createElement('div');
-      card.className = 'rp-card';
-
-      const winStr = rp.winner === -1 ? '引き分け' : (rp.cfg.kind === 'campaign' ? (rp.winner === 0 ? 'クリア' : '失敗') : `勝者: P${rp.winner + 1}`);
-      const shotCount = rp.actions ? rp.actions.length : 0;
-
-      card.innerHTML = `
-        <div class="rp-header">
-          <div>
-            <div class="rp-title">${modeText(rp.cfg)} (${winStr})</div>
-            <div class="rp-meta">${stamp(rp.ts)} · 合計 ${shotCount} ショット</div>
-          </div>
-          <div class="rp-actions">
-            <button class="btn primary btn-play-rp">▶ 再生</button>
-            <button class="btn btn-dl-rp" title="JSONファイルとして保存">💾 保存</button>
-            <button class="btn btn-del-rp" title="削除">削除</button>
-          </div>
-        </div>
-        <div class="rp-shots-summary">
-          ${(rp.actions || []).map((a, i) => `
-            <div class="rp-shot-item">
-              <span class="team-dot" style="background:${TCOL[a.team]};"></span>
-              <span>#${i + 1} ${a.soldierName}:</span>
-              <span class="fn-text">${a.expr}</span>
-              ${a.kills && a.kills.length ? `<span style="color:#ff8a80;">☠ ${a.kills.join(',')}</span>` : ''}
-            </div>
-          `).join('')}
-        </div>
-      `;
-
-      card.querySelector('.btn-play-rp').onclick = () => startReplay(rp);
-      card.querySelector('.btn-dl-rp').onclick = () => downloadReplay(rp);
-      card.querySelector('.btn-del-rp').onclick = () => {
-        if (confirm('このリプレイを削除しますか？')) {
-          putReplays(getReplays().filter((r) => r.id !== rp.id));
-          renderReplays();
-        }
-      };
-
-      el.appendChild(card);
-    });
-  }
-
-  function downloadReplay(rp) {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(rp));
-    const a = document.createElement('a');
-    a.href = dataStr;
-    a.download = `graphwar2_replay_${rp.id}.json`;
-    a.click();
-  }
-
-  // リプレイ操作イベントリスナー
-  $('#rp-play').onclick = () => {
-    if (!R) return;
-    R.isPlaying = !R.isPlaying;
-    if (R.isPlaying && !R.shotObj && R.curIndex >= R.log.actions.length - 1) {
-      // 巻き戻して最初から再生
-      setupReplayStateAt(-1);
-    }
-    if (R.isPlaying && !R.shotObj) {
-      replayStepNext();
-    }
-    updateReplayHUD();
-  };
-  $('#rp-next').onclick = () => {
-    if (!R) return;
-    R.isPlaying = false;
-    if (!R.shotObj) replayStepNext();
-  };
-  $('#rp-prev').onclick = () => {
-    if (!R) return;
-    replayStepPrev();
-  };
-  $('#rp-exit').onclick = exitReplay;
-
-  document.querySelectorAll('.spd-btn').forEach((b) => {
-    b.onclick = () => {
-      document.querySelectorAll('.spd-btn').forEach((x) => x.classList.remove('on'));
-      b.classList.add('on');
-      if (R) R.speed = +b.dataset.spd;
-    };
-  });
-
-  $('#btn-replay').onclick = () => {
-    if (lastFinishedLog) startReplay(lastFinishedLog);
-    else if (getReplays().length > 0) startReplay(getReplays()[0]);
-  };
-
-  // JSONインポート
-  $('#btn-import-replay').onclick = () => $('#input-replay-file').click();
-  $('#input-replay-file').onchange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target.result);
-        if (!parsed.actions || !parsed.initialTerrain) throw new Error('リプレイ形式が不正です');
-        const list = getReplays().filter((r) => r.id !== parsed.id);
-        list.unshift(parsed);
-        putReplays(list);
-        renderReplays();
-        alert('リプレイをインポートしました！');
-      } catch (err) {
-        alert('ファイルの読み込みに失敗しました: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   renderStages();
   // 背景に待機用の盤面を作る
@@ -1017,5 +663,5 @@
   window.addEventListener('resize', fit); new ResizeObserver(fit).observe($('#stage')); fit(); setTimeout(fit, 100);
   $('#menu').classList.remove('hidden');
   requestAnimationFrame(loop);
-  window.__gw = { startGame, get G() { return G; }, tryFire, startReplay, getReplays };
+  window.__gw = { startGame, get G() { return G; }, tryFire };
 })();
