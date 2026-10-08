@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Graphwar Ⅱ クローン | 数式で撃ち合う砲撃ゲーム</title>
+  <meta name="description" content="数学関数の軌道で敵を撃つ砲撃ゲーム Graphwar Ⅱ のブラウザクローン。y=f(x)・1階/2階微分方程式、ターン制とリアルタイム対戦、キャンペーン搭載。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <button id="btn-menu" class="icon-btn" title="メニューへ">← メニュー</button>
+      <div id="mode-label" class="chip">—</div>
+      <div id="score0" class="score t0">0</div>
+      <div id="timer">--</div>
+      <div id="score1" class="score t1">0</div>
+      <div id="fm-label" class="chip">—</div>
+    </header>
+    <div id="hint" class="hint hidden"></div>
+
+    <main id="stage">
+      <canvas id="field" width="2000" height="1200" aria-label="ゲームフィールド"></canvas>
+      <div id="result" class="overlay hidden">
+        <div class="card">
+          <h2 id="result-title">—</h2>
+          <p id="result-sub"></p>
+          <div class="row">
+            <button id="btn-again" class="btn primary">もう一度</button>
+            <button id="btn-next" class="btn primary hidden">次のステージ ▶</button>
+            <button id="btn-tomenu" class="btn">メニュー</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <section id="panels"></section>
+
+    <div id="menu" class="overlay">
+      <div class="card menu-card">
+        <h1>GRAPH<span>WAR</span> Ⅱ <small>clone</small></h1>
+        <p class="lead">関数の軌道で敵を撃て。障害物（黒い円）を避けて、数式を描こう。</p>
+
+        <div id="resume-bar" class="resume hidden">
+          <button id="btn-resume" class="btn primary">▶ 再開</button>
+          <input id="save-name" type="text" maxlength="30" placeholder="セーブ名">
+          <button id="btn-save" class="btn">セーブ</button>
+          <span id="save-msg"></span>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="versus">対戦（同一端末）</button>
+          <button class="tab" data-tab="campaign">キャンペーン</button>
+          <button class="tab" data-tab="saves">セーブデータ</button>
+          <button class="tab" data-tab="help">遊び方</button>
+        </div>
+
+        <div id="tab-versus" class="tabpane">
+          <label class="field-label">対戦方式</label>
+          <div class="seg" id="opt-rt">
+            <button data-v="turn" class="on">ターン制</button>
+            <button data-v="rt">リアルタイム</button>
+          </div>
+          <label class="field-label">関数モード</label>
+          <div class="seg" id="opt-fm">
+            <button data-v="plain" class="on">y = f(x)</button>
+            <button data-v="ode1">y′ = f(x, y)</button>
+            <button data-v="ode2">y″ = f(x, y, y′)</button>
+          </div>
+          <div class="two">
+            <div>
+              <label class="field-label">1チームの兵士数 <b id="n-soldiers-v">3</b></label>
+              <input type="range" id="opt-n" min="1" max="5" value="3">
+            </div>
+            <div>
+              <label class="field-label">障害物の量</label>
+              <div class="seg" id="opt-obs">
+                <button data-v="8">少</button>
+                <button data-v="14" class="on">中</button>
+                <button data-v="22">多</button>
+              </div>
+            </div>
+          </div>
+          <div class="two">
+            <div>
+              <label class="field-label">ターン制限時間 <b id="time-v">60秒</b> <label class="inl"><input type="checkbox" id="opt-unl"> 無制限</label></label>
+              <input type="range" id="opt-time" min="5" max="180" step="5" value="60">
+            </div>
+            <div>
+              <label class="field-label">リアルタイムのクールダウン <b id="cd-v">6秒</b></label>
+              <input type="range" id="opt-cd" min="1" max="20" step="1" value="6">
+            </div>
+          </div>
+          <label class="field-label">弾の貫通</label>
+          <div class="seg" id="opt-pierce">
+            <button data-v="none" class="on">なし</button>
+            <button data-v="soldier">兵士を貫通</button>
+            <button data-v="terrain">障害物を貫通</button>
+            <button data-v="all">すべて貫通</button>
+          </div>
+          <label class="field-label"><label class="inl" style="margin:0"><input type="checkbox" id="opt-prev"> 軌道プレビューを表示（破線で弾道を事前表示・障害物は無視）</label></label>
+          <button id="btn-start" class="btn primary big">対戦開始</button>
+        </div>
+
+        <div id="tab-campaign" class="tabpane hidden">
+          <div id="stage-grid"></div>
+        </div>
+
+        <div id="tab-saves" class="tabpane hidden">
+          <div id="save-list"></div>
+        </div>
+
+        <div id="tab-help" class="tabpane hidden">
+          <ul class="help">
+            <li><b>y = f(x)</b>：入力した関数のグラフが軌道になります。兵士の位置を通るよう自動で上下に平行移動されます。</li>
+            <li><b>y′ = f(x, y)</b>：1階微分方程式。兵士の位置を初期条件として解いた解が軌道です。</li>
+            <li><b>y″ = f(x, y, y′)</b>：2階微分方程式。初期条件は兵士の位置と<b>発射角</b>（↑↓キーまたは ± ボタン）。</li>
+            <li>右側チームは x が左右反転して評価され、常に敵方向へ進みます。</li>
+            <li>使える記法：<code>+ − * / ^ ( )</code>、<code>sin cos tan asin acos atan sinh cosh tanh abs ln log sqrt cbrt exp floor ceil sign</code>、<code>pi e</code>、<code>y'</code>。暗黙の乗算可（<code>2x</code>, <code>3sin(x)</code>）。</li>
+            <li>定義域外（√負数・0除算など）や長すぎる軌道は途中で爆発します。弾は味方にも当たります。</li>
+            <li><b>ターン制</b>：設定した制限時間(5〜180秒/無制限)で交互に発射。<b>リアルタイム</b>：両チームが同時に入力・発射。兵士ごとにクールダウンあり。左 Player1 は左の入力欄、Player2 は右の入力欄（Tab で移動）。盤面の自分の兵士をクリックで選択。関数と発射角は<b>兵士ごとに記憶</b>されます。</li>
+            <li>Enter で発射。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="parser.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
