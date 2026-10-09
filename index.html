@@ -7,7 +7,7 @@
   <meta name="description" content="数学関数の軌道で敵を撃つ砲撃ゲーム Graphwar Ⅱ のブラウザクローン。y=f(x)・1階/2階微分方程式・極座標 r=f(θ)、ターン制とリアルタイム対戦、キャンペーン搭載。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -23,11 +23,15 @@
 
     <main id="stage">
       <canvas id="field" width="2000" height="1200" aria-label="ゲームフィールド"></canvas>
+      <div id="replay-bar" class="hidden"><span id="rp-indicator"></span><button id="rp-prev" class="btn" title="前のショット">⏮</button><button id="rp-play" class="btn primary" title="再生/一時停止">▶</button><button id="rp-next" class="btn" title="次のショット">⏭</button><span class="rp-speed"><button class="spd-btn" data-spd="0.5">0.5x</button><button class="spd-btn on" data-spd="1">1x</button><button class="spd-btn" data-spd="2">2x</button><button class="spd-btn" data-spd="4">4x</button></span><button id="rp-exit" class="btn">✕ 終了</button></div>
       <div id="result" class="overlay hidden">
         <div class="card">
           <h2 id="result-title">—</h2>
           <p id="result-sub"></p>
+          <p id="rp-status"></p>
           <div class="row">
+            <button id="btn-replay" class="btn hidden">🎬 リプレイを見る</button>
+            <button id="btn-dl-last" class="btn hidden">ログをJSON保存</button>
             <button id="btn-again" class="btn primary">もう一度</button>
             <button id="btn-next" class="btn primary hidden">次のステージ ▶</button>
             <button id="btn-tomenu" class="btn">メニュー</button>
@@ -54,6 +58,7 @@
           <button class="tab active" data-tab="versus">対戦（同一端末）</button>
           <button class="tab" data-tab="campaign">キャンペーン</button>
           <button class="tab" data-tab="saves">セーブデータ</button>
+          <button class="tab" data-tab="replays">対戦ログ</button>
           <button class="tab" data-tab="help">遊び方</button>
         </div>
 
@@ -113,6 +118,10 @@
           <div id="save-list"></div>
         </div>
 
+        <div id="tab-replays" class="tabpane hidden">
+          <div class="rp-toolbar"><button id="btn-import-replay" class="btn">JSONを読み込む</button><input type="file" id="input-replay-file" accept=".json" class="hidden"></div>
+          <div id="replay-list"></div>
+        </div>
         <div id="tab-help" class="tabpane hidden">
           <ul class="help">
             <li><b>y = f(x)</b>：入力した関数のグラフが軌道になります。兵士の位置を通るよう自動で上下に平行移動されます。</li>
@@ -131,7 +140,7 @@
   </div>
   <!-- ?v= はキャッシュ対策。JS/CSS を変更したら番号を上げること
        (上げないと、ブラウザに残った古い JS と新しい HTML が混ざって動かなくなる) -->
-  <script src="parser.js?v=2"></script>
-  <script src="game.js?v=2"></script>
+  <script src="parser.js?v=3"></script>
+  <script src="game.js?v=3"></script>
 </body>
 </html>

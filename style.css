@@ -149,3 +149,24 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   #stage-grid { grid-template-columns: repeat(3, 1fr); }
   .two { grid-template-columns: 1fr; }
 }
+
+/* ===== 対戦ログ / リプレイ ===== */
+#replay-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(15,20,18,.88); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(6px); z-index: 5; }
+#replay-bar.hidden { display: none; }
+#rp-indicator { font-weight: 700; min-width: 110px; font-variant-numeric: tabular-nums; }
+.rp-speed { display: flex; gap: 2px; margin: 0 6px; }
+.spd-btn { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; font: inherit; font-size: 12px; }
+.spd-btn.on { color: #fff; border-color: #fff; }
+#rp-status { font-size: 13px; color: #6fdc9a; min-height: 1.2em; margin: 4px 0; }
+#rp-status.bad { color: #ff8a7a; }
+.rp-toolbar { margin-bottom: 10px; }
+#replay-list { display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; }
+.rp-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; text-align: left; }
+.rp-header { display: flex; flex-direction: column; gap: 2px; }
+.rp-meta { color: var(--muted); }
+.rp-actions { display: flex; gap: 6px; margin: 8px 0; }
+.rp-shots-summary { display: flex; flex-wrap: wrap; gap: 4px; }
+.rp-shot-item { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; cursor: pointer; font: inherit; font-size: 12px; }
+.rp-shot-item:hover { border-color: #fff; }
+.team-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.fn-text { font-family: 'JetBrains Mono', monospace; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
